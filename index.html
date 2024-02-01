@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Scanner</title>
+    <style>
+        /* 將 CSS 直接放在 HTML 中以避免外部資源載入問題 */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f0f0f0;
+        }
+        #scanner-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            border: 5px solid #333;
+        }
+        #qr-border {
+            position: absolute;
+            top: 50px;
+            left: 50px;
+            width: 200px;
+            height: 200px;
+            border: 4px dashed green;
+        }
+        #scan-btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 20px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="scanner-container">
+        <video id="qr-video" style="display: none;"></video>
+        <canvas id="qr-canvas" style="display: none;"></canvas>
+        <div id="qr-border"></div>
+    </div>
+    <button id="scan-btn">掃描 QR 碼</button>
+    <!-- 腳本可以直接放在 HTML 中或作為外部文件 -->
+    <!-- 引入 jsQR 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.3.0/jsQR.js"></script>
+    <script>
+        // 將 JavaScript 直接放在 HTML 中以確保正確的加載順序
+        document.addEventListener('DOMContentLoaded', function () {
+            const btn = document.getElementById('scan-btn');
+            const video = document.getElementById('qr-video');
+            const canvasElement = document.getElementById('qr-canvas');
+            const canvas = canvasElement.getContext('2d');
+
+            let videoStream;
+
+            btn.addEventListener('click', () => {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                        .then(function(stream) {
+                            videoStream = stream;
+                            video.srcObject = stream;
+                            video.setAttribute("playsinline", true); // required to tell iOS safari we don't want fullscreen
+                            video.style.display = "block";
+                            video.play();
+                            scanQRCode();
+                        }).catch(function(error) {
+                            console.error("無法訪問攝像頭", error);
+                        });
+                } else {
+                    alert("您的瀏覽器不支持攝像頭訪問");
+                }
+            });
+
+            function scanQRCode() {
+                requestAnimationFrame(scan);
+                function scan() {
+                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                        canvasElement.style.display = 'block';
+                        canvasElement.height = video.videoHeight;
+                        canvasElement.width = video.videoWidth;
+                        canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                        let imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                        let code = jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: "dontInvert",
+                        });
+
+                        if (code) {
+                            videoStream.getTracks().forEach(function(track) {
+                                track.stop();
+                            });
+                            video.style.display = "none";
+                            canvasElement.style.display = 'none';
+
+                            if (/^https?:\/\/go\.walking-cat\.com\/.+$/.test(code.data)) {
+                                window.location.href = code.data;
+                            } else {
+                                alert("掃描的 QR 碼不是有效的 go.walking-cat.com 網址");
+                            }
+                        } else {
+                            requestAnimationFrame(scan);
+                        }
+                    } else {
+                        requestAnimationFrame(scan);
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
